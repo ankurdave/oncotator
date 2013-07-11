@@ -67,6 +67,8 @@ with open(input_file, 'r') as f:
         output_chunk = output_chunk.split('\n', 2)[2]
 
       # Append the result to the output file
-      out.write(output_chunk.encode('UTF-8'))
-      sys.stdout.write('done.\n')
+      output_chunk_bytes = output_chunk.encode('UTF-8')
+      out.write(output_chunk_bytes)
+      sys.stdout.write('done. Wrote %d lines, %d bytes.\n' % (
+        unicode.count(output_chunk, '\n'), len(output_chunk_bytes)))
       sys.stdout.flush()
