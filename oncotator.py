@@ -69,6 +69,6 @@ with open(input_file, 'r') as f:
       # Append the result to the output file
       output_chunk_bytes = output_chunk.encode('UTF-8')
       out.write(output_chunk_bytes)
-      sys.stdout.write('done. Wrote %d lines, %d bytes.\n' % (
-        unicode.count(output_chunk, '\n'), len(output_chunk_bytes)))
+      sys.stdout.write('done. Fetched %s; wrote %d lines, %d bytes.\n' % (
+        download_url, unicode.count(output_chunk, '\n'), len(output_chunk_bytes)))
       sys.stdout.flush()
