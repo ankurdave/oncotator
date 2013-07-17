@@ -24,6 +24,10 @@ def grouper(iterable, n, fillvalue=None):
 is_first_chunk = True
 chunk_index = 1
 
+# Get the web form and extract its CSRF token
+form = requests.get(form_url)
+csrf_token = form.cookies['csrftoken']
+
 with open(input_file, 'r') as f:
   with open(output_file, 'w') as out:
     for chunk in grouper(f, chunk_size_lines):
@@ -35,12 +39,6 @@ with open(input_file, 'r') as f:
         chunk_index, len(chunk_lines), len(chunk_string)))
       sys.stdout.flush()
       chunk_index += 1
-
-      # Get the web form and extract its CSRF token
-      form = requests.get(form_url)
-      csrf_token = form.cookies['csrftoken']
-      sys.stdout.write('.')
-      sys.stdout.flush()
 
       # Submit the current chunk and include the CSRF token
       data = {
