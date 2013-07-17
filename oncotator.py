@@ -10,7 +10,7 @@ if len(sys.argv) < 3:
     sys.exit(1)
 
 form_url = 'http://www.broadinstitute.org/oncotator/'
-api_url = 'http://www.broadinstitute.org/oncotator/mutation/%s_%s_%s_%s_%s'
+api_url = 'http://www.broadinstitute.org/oncotator/mutation/%s_%s_%s_%s_%s/'
 chunk_size_lines = 7500
 
 input_file = sys.argv[1]
@@ -32,7 +32,7 @@ def jsonLookup(key, json):
     elif isinstance(key, basestring):
         return key
     elif isinstance(key, types.FunctionType):
-        key(json)
+        return key(json)
     elif isinstance(key, list):
         if key:
             if isinstance(json, dict):
@@ -54,8 +54,12 @@ def jsonLookup(key, json):
         return None
 
 def otherTranscripts(json):
+    hugo_symbol = transcriptLookup('gene', json)
     def summarizeTranscript(t):
-        return '%s_%s' % (t['transcript_id'], t['variant_classification'])
+        elements = [t['transcript_id'], t['variant_classification']]
+        if hugo_symbol is not None:
+            elements = [hugo_symbol] + elements
+        return '_'.join(elements)
     transcripts = [summarizeTranscript(t) for t in json['transcripts'][1:]]
     return '|'.join(transcripts)
 
@@ -119,29 +123,29 @@ column_locs = [
     ('Codon_Change', lambda json: transcriptLookup('codon_change', json)),
     ('Protein_Change', lambda json: transcriptLookup('protein_change', json)),
     ('Other_Transcripts', otherTranscripts),
-    ('Refseq_mRNA_Id', None),   # TODO
-    ('Refseq_prot_Id', None),   # TODO
-    ('SwissProt_acc_Id', None), # TODO
-    ('SwissProt_entry_Id', None), # TODO
+    ('Refseq_mRNA_Id', lambda json: transcriptLookup('refseq_mRNA_id', json)),
+    ('Refseq_prot_Id', lambda json: transcriptLookup('refseq_prot_id', json)),
+    ('SwissProt_acc_Id', None),
+    ('SwissProt_entry_Id', None),
     ('Description', lambda json: transcriptLookup('description', json)),
-    ('UniProt_AApos', None),    # TODO
-    ('UniProt_Region', None),# TODO
-    ('UniProt_Site', None),# TODO
-    ('UniProt_Natural_Variations', None),# TODO
-    ('UniProt_Experimental_Info', None),# TODO
-    ('GO_Biological_Process', None),# TODO
-    ('GO_Cellular_Component', None),# TODO
-    ('GO_Molecular_Function', None),# TODO
-    ('COSMIC_overlapping_mutations', None),# TODO
-    ('COSMIC_fusion_genes', None),# TODO
-    ('COSMIC_tissue_types_affected', None),# TODO
+    ('UniProt_AApos', None),
+    ('UniProt_Region', None),
+    ('UniProt_Site', None),
+    ('UniProt_Natural_Variations', None),
+    ('UniProt_Experimental_Info', None),
+    ('GO_Biological_Process', None),
+    ('GO_Cellular_Component', None),
+    ('GO_Molecular_Function', None),
+    ('COSMIC_overlapping_mutations', ['Cosmic_overlapping_mutations']),
+    ('COSMIC_fusion_genes', None),
+    ('COSMIC_tissue_types_affected', None),
     ('COSMIC_total_alterations_in_gene', None),
     ('Tumorscape_Amplification_Peaks', None),
     ('Tumorscape_Deletion_Peaks', None),
     ('TCGAscape_Amplification_Peaks', None),
     ('TCGAscape_Deletion_Peaks', None),
-    ('DrugBank', None),# TODO
-    ('PPH2_Class', None),# TODO
+    ('DrugBank', None),
+    ('PPH2_Class', None),
     ('PPH2_Prob', None),
     ('PPH2_FDR', None),
     ('PPH2_MSA_dScore', None),
@@ -152,7 +156,7 @@ column_locs = [
     ('CCLE_ONCOMAP_total_mutations_in_gene', None),
     ('CGC_Mutation_Type', None),
     ('CGC_Translocation_Partner', None),
-    ('CGC_Tumor_Types_Somatic', None),# TODO
+    ('CGC_Tumor_Types_Somatic', None),
     ('CGC_Tumor_Types_Germline', None),
     ('CGC_Other_Diseases', None),
     ('DNARepairGenes_Role', None),
@@ -166,26 +170,16 @@ with open(input_file, 'r') as f, open(output_file, 'w') as out:
         sys.stdout.flush()
 
         # Submit the current line
-        api_url_for_line = api_url % tuple(line.split('\t'))
+        api_url_for_line = api_url % tuple(line.rstrip().split('\t'))
         r = requests.get(api_url_for_line)
 
         # Format the resulting output
         json = r.json()
         cols = [jsonLookup(json_position, json) for name, json_position in column_locs]
-        download_url = unicode.replace(r.url, '/report/', '/download/')
-        output_chunk = requests.get(download_url).text
-        sys.stdout.write('.')
-        sys.stdout.flush()
-
-        # Strip the first two header lines for all but the first chunk
-        if is_first_chunk:
-            is_first_chunk = False
-        else:
-            output_chunk = output_chunk.split('\n', 2)[2]
+        if cols[0] is None:
+            cols[0] = 'Unknown'
+        row = '\t'.join([('' if col is None else str(col)) for col in cols]) + '\n'
 
         # Append the result to the output file
-        output_chunk_bytes = output_chunk.encode('UTF-8')
-        out.write(output_chunk_bytes)
-        sys.stdout.write('done. Fetched %s; wrote %d lines, %d bytes.\n' % (
-            download_url, unicode.count(output_chunk, '\n'), len(output_chunk_bytes)))
-        sys.stdout.flush()
+        row_bytes = row.encode('UTF-8')
+        out.write(row_bytes)
