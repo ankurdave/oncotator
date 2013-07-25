@@ -3,6 +3,7 @@
 import itertools
 import requests
 import sys
+import time
 
 if len(sys.argv) < 3:
     print """Usage: oncotator.py INPUT_FILE OUTPUT_FILE"""
@@ -49,14 +50,17 @@ with open(input_file, 'r') as f:
       cookies = {'csrftoken': csrf_token}
       headers = {'Referer': form_url}
       r = requests.post(form_url, data=data, cookies=cookies, headers=headers)
-      sys.stdout.write('.')
-      sys.stdout.flush()
 
-      # Get the resulting output
+      # Get the resulting output, retrying until all records are processed
       download_url = unicode.replace(r.url, '/report/', '/download/')
-      output_chunk = requests.get(download_url).text
-      sys.stdout.write('.')
+      sys.stdout.write('Fetching %s... ' % download_url)
       sys.stdout.flush()
+      output_chunk = requests.get(download_url).text
+      while unicode.count(output_chunk, '\n') - 2 < len(chunk_lines):
+        sys.stdout.write('%d ' % (unicode.count(output_chunk, '\n') - 2))
+        sys.stdout.flush()
+        time.sleep(2)
+        output_chunk = requests.get(download_url).text
 
       # Strip the first two header lines for all but the first chunk
       if is_first_chunk:
@@ -67,6 +71,6 @@ with open(input_file, 'r') as f:
       # Append the result to the output file
       output_chunk_bytes = output_chunk.encode('UTF-8')
       out.write(output_chunk_bytes)
-      sys.stdout.write('done. Fetched %s; wrote %d lines, %d bytes.\n' % (
-        download_url, unicode.count(output_chunk, '\n'), len(output_chunk_bytes)))
+      sys.stdout.write('...done. Wrote %d lines, %d bytes.\n' % (
+        unicode.count(output_chunk, '\n'), len(output_chunk_bytes)))
       sys.stdout.flush()
